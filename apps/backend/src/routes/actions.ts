@@ -105,8 +105,11 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
       }
 
       // Run embedding generation and thread creation in parallel
-      const [{ data: embedding }, thread] = await Promise.all([
-        c.env.AI.run("@cf/baai/bge-base-en-v1.5", { text: queryText }),
+      const [embeddingResult, thread] = await Promise.all([
+        embed({
+          model: openai(c.env).embedding('text-embedding-ada-002'),
+          value: queryText
+        }),
         !threadId
           ? db
               .insert(chatThreads)
@@ -120,6 +123,8 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
           : null,
       ]);
 
+      const embedding = embeddingResult.embedding;
+
       const threadUuid = threadId || thread?.[0].uuid;
 
       if (!embedding) {
@@ -130,7 +135,7 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
         const data = new StreamData();
 
         // Pre-compute the vector similarity expression
-        const vectorSimilarity = sql<number>`1 - (embeddings <=> ${JSON.stringify(embedding[0])}::vector)`;
+        const vectorSimilarity = sql<number>`1 - (embeddings <=> ${JSON.stringify(embedding)}::vector)`;
 
         // Get matching chunks with document info
         const matchingChunks = await db
@@ -569,11 +574,13 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
 
       try {
         // Generate embedding for the search query
-        const embeddings = await c.env.AI.run("@cf/baai/bge-base-en-v1.5", {
-          text: query,
+        const embeddingResult = await embed({
+          model: openai(c.env).embedding('text-embedding-ada-002'),
+          value: query
         });
+        const embedding = embeddingResult.embedding;
 
-        if (!embeddings.data) {
+        if (!embedding) {
           return c.json(
             { error: "Failed to generate embedding for query" },
             500
@@ -581,7 +588,7 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
         }
 
         // Pre-compute the vector similarity expression
-        const vectorSimilarity = sql<number>`1 - (embeddings <=> ${JSON.stringify(embeddings.data[0])}::vector)`;
+        const vectorSimilarity = sql<number>`1 - (embeddings <=> ${JSON.stringify(embedding)}::vector)`;
 
         // Get matching chunks
         const results = await db
@@ -883,7 +890,7 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
           metadata: body.metadata,
         });
 
-        await c.env.CONTENT_WORKFLOW.create({
+        await c.env.MY_WORKFLOW.create({
           params: {
             userId: user.id,
             content: body.content,
@@ -1106,7 +1113,7 @@ const actions = fromHono(new Hono<{ Variables: Variables; Bindings: Env }>())
               });
 
               // Create workflow for processing
-              await c.env.CONTENT_WORKFLOW.create({
+              await c.env.MY_WORKFLOW.create({
                 params: {
                   userId: user.id,
                   content,

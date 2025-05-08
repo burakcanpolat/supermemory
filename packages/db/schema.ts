@@ -225,7 +225,7 @@ export const chunk = pgTable(
       .notNull(),
     textContent: text("text_content"),
     orderInDocument: integer("order_in_document").notNull(),
-    embeddings: vector("embeddings", { dimensions: 768 }),
+    embeddings: vector("embeddings", { dimensions: 1536 }),
     metadata: jsonb("metadata").$type<Metadata>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

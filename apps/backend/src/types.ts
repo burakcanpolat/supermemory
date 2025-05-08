@@ -31,10 +31,10 @@ export type Env = {
   WORKOS_CLIENT_ID: string;
   WORKOS_COOKIE_PASSWORD: string;
   DATABASE_URL: string;
-  CONTENT_WORKFLOW: Workflow;
+  MY_WORKFLOW: Workflow;
   GEMINI_API_KEY: string;
   NODE_ENV: string;
-  OPEN_AI_API_KEY: string;
+  OPENAI_API_KEY: string;
   BRAINTRUST_API_KEY: string;
   RESEND_API_KEY: string;
   TURNSTILE_SECRET_KEY: string;

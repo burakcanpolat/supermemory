@@ -64,6 +64,6 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
 	return json({
 		success: true,
-		url: `https://media.supermemory.ai/${user.user.id}/${uniqueFileName}`,
+		url: `https://pub-72f2fef0ef8c451b92b8d632430d198e.r2.dev/${user.user.id}/${uniqueFileName}`,
 	});
 }

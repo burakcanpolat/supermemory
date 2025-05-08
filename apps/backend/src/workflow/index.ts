@@ -49,6 +49,21 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
         async () => await fetchContent(event.payload, this.env, step)
       ));
 
+    // NEW CHECK: Check for error in rawContent
+    if (rawContent.error) {
+      await step.do("update document with error", async () => {
+        await database(this.env.HYPERDRIVE.connectionString)
+          .update(documents)
+          .set({
+            isSuccessfullyProcessed: false,
+            errorMessage: rawContent.error, // Save the error message
+            updatedAt: new Date(),
+          })
+          .where(eq(documents.uuid, event.payload.uuid));
+      });
+      throw new NonRetryableError(`Failed to process content due to: ${rawContent.error}`);
+    }
+
     // check that the rawcontent is not too big
     if (rawContent.contentToVectorize.length > 100000) {
       await database(this.env.HYPERDRIVE.connectionString)
@@ -61,8 +76,12 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
       chunkText(rawContent.contentToVectorize, 768)
     );
 
+    // Define variables to hold step results in a wider scope
+    let documentResult: any; // Tipini daha sonra iyileştirebiliriz, şimdilik any
+    let openaiEmbeddingsResult: number[][];
+
     // Step 2: Create the document in the database.
-    const document = await step.do("create document", async () => {
+    documentResult = await step.do("create document", async () => {
       try {
         // First check if document exists
         const existingDoc = await database(this.env.HYPERDRIVE.connectionString)
@@ -71,7 +90,7 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
           .where(eq(documents.uuid, event.payload.uuid))
           .limit(1);
 
-        return await database(this.env.HYPERDRIVE.connectionString)
+        const doc = await database(this.env.HYPERDRIVE.connectionString)
           .insert(documents)
           .values({
             userId: event.payload.userId,
@@ -114,8 +133,15 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
             },
           })
           .returning();
+        
+        if (!doc || doc.length === 0) {
+          throw new NonRetryableError(
+            "Failed to create/update document - no document returned"
+          );
+        }
+        return doc;
       } catch (error) {
-        console.log("here's the error", error);
+        console.log("here's the error in create document step", error);
         // Check if error is a unique constraint violation
         if (
           error instanceof Error &&
@@ -136,34 +162,39 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
             .where(eq(documents.uuid, event.payload.uuid));
           throw new NonRetryableError("The exact same document already exists");
         }
-        throw error; // Re-throw other errors
+        throw error;
       }
     });
-
-    if (!document || document.length === 0) {
-      throw new Error(
-        "Failed to create/update document - no document returned"
-      );
-    }
+    
+    const currentDocument = documentResult[0];
 
     // Step 3: Generate embeddings
-    const { data: embeddings } = await this.env.AI.run(
-      "@cf/baai/bge-base-en-v1.5",
-      {
-        text: chunked,
+    openaiEmbeddingsResult = await step.do("generate embeddings via openai", async () => {
+      if (!chunked || chunked.length === 0) {
+        return [];
       }
-    );
+      const { embeddings } = await embedMany({
+        model: openai(this.env).embedding('text-embedding-ada-002'),
+        values: chunked,
+      });
+      if (!embeddings || embeddings.length !== chunked.length) {
+        throw new NonRetryableError("Failed to generate embeddings or mismatch in length");
+      }
+      return embeddings;
+    });
 
     // Step 4: Prepare chunk data
     const chunkInsertData: ChunkInsert[] = await step.do(
       "prepare chunk data",
-      async () =>
-        chunked.map((chunk, index) => ({
-          documentId: document[0].id,
-          textContent: chunk,
+      async () => {
+        if (chunked.length === 0) return [];
+        return chunked.map((textChunk, index) => ({
+          documentId: currentDocument.id,
+          textContent: textChunk,
           orderInDocument: index,
-          embeddings: embeddings[index],
-        }))
+          embeddings: openaiEmbeddingsResult && openaiEmbeddingsResult[index] ? openaiEmbeddingsResult[index] : [],
+        }));
+      }
     );
 
     // Step 5: Insert chunks
@@ -195,7 +226,7 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
             // Then insert the content-space mappings using the actual space IDs
             await trx.insert(contentToSpace).values(
               spaceIds.map((space) => ({
-                contentId: document[0].id,
+                contentId: currentDocument.id,
                 spaceId: space.id,
               }))
             );
@@ -211,7 +242,7 @@ export class ContentWorkflow extends WorkflowEntrypoint<Env, WorkflowParams> {
         .set({
           isSuccessfullyProcessed: true,
         })
-        .where(eq(documents.id, document[0].id));
+        .where(eq(documents.id, currentDocument.id));
     });
   }
 }

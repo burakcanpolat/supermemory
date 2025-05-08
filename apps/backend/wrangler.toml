@@ -18,25 +18,25 @@ mode = "smart"
 binding = "AI"
 
 [[workflows]]
-name = "content-workflow-supermemory"
-binding = "CONTENT_WORKFLOW"
+name = "workflows-starter"
+binding = "MY_WORKFLOW"
 class_name = "ContentWorkflow"
 
 
 [[kv_namespaces]]
 binding= "MD_CACHE"
-id = "3186489f943d409a9b772d876a58a73e"
-preview_id = "3186489f943d409a9b772d876a58a73e"
+id = "179877c7b9724f9e85cbdd0badd2312e"
+preview_id = "f2628aa93f964982a051af6ea7e791e7"
 
 [[kv_namespaces]]
 binding = "ENCRYPTED_TOKENS"
-id = "a1f048ee14644468ad63b817b5648a31"
-preview_id = "a1f048ee14644468ad63b817b5648a31"
+id = "f2660879f3414290a748cad4bec31043"
+preview_id = "5cc6a06ffa354019aedacd5201b20786"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "3a377d1b9c084e698ee201f10dfa8131"
-localConnectionString = "postgres://postgres:postgres@localhost:5432/supermemorylocal?sslmode=require"
+id = "169f9429db4840dca58e7c8f73636494"
+localConnectionString = "postgresql://postgres:postgres@localhost:5432/supermemory"
 
 [[unsafe.bindings]]
 name = "EMAIL_LIMITER"

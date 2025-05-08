@@ -135,7 +135,11 @@ export const fetchContent = async (
       return {
         contentToVectorize: documentContent.content,
         contentToSave: documentContent.content,
+        title: "", // Default title if not extracted from PDF
+        description: "", // Default description
+        ogImage: "", // Default ogImage
         type: "document",
+        error: documentContent.error, // Pass the error field along
       };
     default:
       throw new NonRetryableError("Unknown content type");

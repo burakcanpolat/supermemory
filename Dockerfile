@@ -27,11 +27,13 @@ RUN cargo install cargo-pgrx --version 0.12.5 --locked && \
     cargo pgrx init --pg17 pg_config
 
 # Clone and install pgvectorscale
+ENV RUSTFLAGS="-C target-feature=+avx2,+fma"
 RUN cd /tmp && \
     git clone --branch 0.5.0 https://github.com/timescale/pgvectorscale && \
     cd pgvectorscale/pgvectorscale && \
     cargo pgrx install --release
 
 # Create initialization script to enable both extensions
+ENV RUSTFLAGS=""
 RUN echo 'CREATE EXTENSION IF NOT EXISTS vector;' > /docker-entrypoint-initdb.d/01-init-vector.sql && \
     echo 'CREATE EXTENSION IF NOT EXISTS vectorscale CASCADE;' > /docker-entrypoint-initdb.d/02-init-vectorscale.sql

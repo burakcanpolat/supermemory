@@ -1,6 +1,6 @@
 import * as mammoth from "mammoth";
 import { NonRetryableError } from "cloudflare:workflows";
-import { resolvePDFJS } from 'pdfjs-serverless';
+import { extractText } from 'unpdf';
 
 interface DocumentContent {
   content: string;
@@ -32,9 +32,10 @@ export const extractDocumentContent = async (
         throw new NonRetryableError(`Unsupported file type: ${fileExtension}`);
     }
   } catch (error) {
+    console.error("Error in extractDocumentContent:", error);
     return {
       content: "",
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      error: error instanceof Error ? error.message : "Unknown error occurred during content extraction",
     };
   }
 };
@@ -42,33 +43,27 @@ export const extractDocumentContent = async (
 async function extractPdfContent(url: string): Promise<DocumentContent> {
   try {
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch PDF from URL: ${response.statusText}`);
+    }
     const arrayBuffer = await response.arrayBuffer();
 
-    // Initialize PDF.js with serverless compatibility
-    const { getDocument } = await resolvePDFJS();
-    
-    // Load the PDF document
-    const pdf = await getDocument({
-      data: arrayBuffer,
-      useSystemFonts: true,
-    }).promise;
+    const { text: rawTextPages } = await extractText(arrayBuffer);
 
-    let fullText = "";
+    const fullText = Array.isArray(rawTextPages) ? rawTextPages.join('\n') : (rawTextPages || "");
 
-    // Extract text from each page
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(" ");
-      fullText += pageText + "\n";
+    if (fullText.trim() === '') {
+       console.warn(`unpdf extracted empty text from ${url}`);
     }
 
     return { content: fullText };
+
   } catch (error) {
-    console.error("Error extracting PDF content:", error);
+    console.error("Error extracting PDF content with unpdf:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to extract PDF content with unpdf";
     return {
       content: "",
-      error: error instanceof Error ? error.message : "Failed to extract PDF content",
+      error: errorMessage,
     };
   }
 }

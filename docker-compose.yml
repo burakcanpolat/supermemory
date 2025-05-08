@@ -2,12 +2,13 @@ version: "3.8"
 
 services:
   db:
-    image: pgvector/pgvector:pg15
+    build: .
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_DB=supermemory
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres # Lütfen bu şifreyi daha güvenli bir şifre ile değiştirin.
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
